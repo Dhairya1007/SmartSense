@@ -1,0 +1,114 @@
+/*  SmartSense Final Photon code
+	Developer - Dhairya Parikh
+	Note - Please keep in mind that I have added a common trig and echo ultrasonic pin
+		   for both the spresense and photon boards, as I faced difficulty in sending 
+		   the ultrasonic data via serial.
+*/
+
+// This #include statement was automatically added by the Particle IDE.
+#include <blynk.h>
+
+#include "application.h"
+
+char auth[] = "391ba67145fb47ad8ae9e43dece16eab";
+
+void setup()
+{
+    Serial.begin(115200);
+    Blynk.begin(auth);
+    pinMode(D0,INPUT);
+}
+
+void loop() 
+{
+    int ultrasonic = 0;
+    String result; 
+    while(Serial1.available())
+	{
+		if (readBufOffset < READ_BUF_SIZE)
+		{
+			char c[] = Serial1.read();
+			if (c != '\n')
+			{
+				// Add character to buffer
+				readBuf[readBufOffset++] = c;
+			}
+			else
+			{
+				// End of line character found, process line
+				readBuf[readBufOffset] = 0;
+				processBuffer();
+				readBufOffset = 0;
+			}
+		}
+		else
+		{
+			Serial.println("readBuf overflow, emptying buffer");
+			readBufOffset = 0;
+		}
+	}
+	//c[0] - Latitude, c[1] - Longitude
+    int value = 2;
+    value = digitalRead(D0);
+    Blynk.run();
+    Particle.process();
+    ultrasonic = ping(D2, D6, 20, true);
+    if(ultrasonic>=60)
+    {
+        result = "No Obstacles or pits detected      ";
+    }
+    else if((ultrasonic>=30)&&(ultrasonic<=60))
+    {
+        result = "Caution! Nearby Obstacles Detected";
+    }
+    else
+    {
+        result = "Danger! Mind your step             ";
+    }
+    WidgetLCD lcd(V0);
+    WidgetLED led(V2);
+    lcd.print(0,0,result);
+    int index = 1;
+    Blynk.virtualWrite(V1,index, c[0],c[1],"Current Location");
+    
+    if(value == 1)
+    {
+        String value1 = String(value); 
+        led.on();
+        Blynk.notify("SOS Signal Activated, Please take a look");
+    }
+    else if(value == 0)
+    {
+        String value1 = String(value); 
+        Particle.publish("value",value1);
+        led.off();
+    }
+}
+
+int ping(pin_t trig_pin, pin_t echo_pin, uint32_t wait, bool info)
+{
+    uint32_t duration, inches, cm;
+    static bool init = false;
+    if (!init) {
+        pinMode(trig_pin, OUTPUT);
+        digitalWriteFast(trig_pin, LOW);
+        pinMode(echo_pin, INPUT);
+        delay(50);
+        init = true;
+    }
+
+    /* Trigger the sensor by sending a HIGH pulse of 10 or more microseconds */
+    digitalWrite(trig_pin, LOW);
+    delayMicroseconds(5);
+    digitalWrite(trig_pin, HIGH);
+    delayMicroseconds(10);
+    digitalWrite(trig_pin, LOW); 
+  
+    duration = pulseIn(echo_pin, HIGH);
+    
+    cm = duration / 29 / 2;
+    
+    Serial.printlnf(" %6d cm ",cm);
+    delay(2000); // slow down the output
+    return cm;
+}
